@@ -1,12 +1,14 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Menu, Users, Bell, MessageCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Menu, Users, Bell, MessageCircle, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import useAuthStore from '@/store/authStore';
 import useChatStore from '@/store/chatStore';
 import useUIStore from '@/store/uiStore';
 import useSocket from '@/hooks/useSocket';
 import { getAvatarUrl } from '@/lib/avatarHelper';
+import toast from 'react-hot-toast';
 
 const CHANNELS = [
   { id: 'md-arkadaslik', label: 'MD Arkadaşlık', emoji: '👥' },
@@ -19,6 +21,37 @@ export default function Header() {
   const { activeChannel, setActiveChannel, notifications } = useChatStore();
   const { openLeftDrawer, toggleMobileOnline } = useUIStore();
   const { joinChannel } = useSocket();
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setIsInstallable(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    // iOS Safari kontrolü
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isIOS && !isStandalone) setIsInstallable(true);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS) {
+      toast('📱 Safari\'de "Paylaş" → "Ana Ekrana Ekle" seçin!', { duration: 5000, icon: '📲' });
+      return;
+    }
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      toast.success('Uygulama yüklendi! 🎉');
+      setIsInstallable(false);
+    }
+  };
 
   const handleChannelClick = (channelId) => {
     if (channelId === activeChannel) return;
@@ -79,6 +112,26 @@ export default function Header() {
               <Bell size={20} className="text-gray-500" />
             </div>
           )}
+
+          {/* Uygulamayı Yükle */}
+          <AnimatePresence>
+            {isInstallable && (
+              <motion.button
+                id="install-app-btn"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleInstall}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl gradient-orange text-white text-xs font-semibold orange-glow hover:opacity-90 transition-opacity flex-shrink-0"
+                title="Uygulamayı telefona yükle"
+              >
+                <Download size={14} />
+                <span className="hidden sm:inline">Yükle</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* Mobil - Online Kullanıcılar */}
           <motion.button
